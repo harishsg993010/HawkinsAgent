@@ -1,7 +1,7 @@
 [project]
 name = "hawkins-agent"
 version = "0.1.0"
-description = "A Python SDK for building AI agents with minimal code using Hawkins ecosystem"
+description = "A Python SDK for building AI agents with minimal code using Hawkins ecosystem with HawkinDB memory"
 requires-python = ">=3.11"
 readme = "docs/README.md"
 license = "MIT"
@@ -19,8 +19,10 @@ classifiers = [
 ]
 dependencies = [
     "aiohttp>=3.8.0",
+    "build>=1.2.2.post1",
     "flask[async]>=3.1.0",
     "google-api-python-client>=2.156.0",
+    "hatchling>=1.27.0",
     "hawkins-rag>=0.1.0",
     "hawkinsdb>=1.0.1",
     "litellm>=1.0.0",
@@ -29,6 +31,7 @@ dependencies = [
     "serpapi>=0.1.5",
     "tavily-python>=0.5.0",
     "trafilatura>=2.0.0",
+    "wheel>=0.45.1",
 ]
 
 [project.optional-dependencies]
@@ -40,7 +43,6 @@ dev = [
 
 full = [
     "build>=1.2.2.post1",
-    "twine>=6.0.1",
     "wheel>=0.45.1",
 ]
 
