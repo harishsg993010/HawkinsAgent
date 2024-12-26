@@ -77,10 +77,19 @@ class Agent:
             if context:
                 combined_context.update(context)
 
-            # Format messages list
-            messages = [
-                Message(role=MessageRole.SYSTEM, content=self.system_prompt)
-            ]
+            # Format messages list with system prompt and context
+            messages = [Message(role=MessageRole.SYSTEM, content=self.system_prompt)]
+
+            # Add context if available
+            if combined_context:
+                context_msg = "Context:\n" + "\n".join([
+                    f"- {k}: {v}" for k, v in combined_context.items()
+                ])
+                messages.append(Message(
+                    role=MessageRole.SYSTEM,
+                    content=context_msg
+                ))
+
             messages.append(Message(role=MessageRole.USER, content=message))
 
             # Format tools for LLM
@@ -95,24 +104,24 @@ class Agent:
                             "properties": {
                                 "query": {
                                     "type": "string", 
-                                    "description": "The search query or parameters for the tool"
+                                    "description": "The query or parameters for the tool"
                                 }
                             },
                             "required": ["query"]
                         }
                     })
 
-            # Get LLM response with tool support
+            # Get LLM response
             response = await self.llm.generate_response(
                 messages=messages,
                 tools=formatted_tools if self.tools else None
             )
 
             # Parse response and handle tool calls
-            result = await self._process_response(response)
+            result = await self._process_response(response, message)
 
-            # Update memory
-            if result and result.message:  # Only update if we have a valid message
+            # Update memory if we have a valid message
+            if result and result.message:
                 await self.memory.add_interaction(message, result.message)
 
             return result or AgentResponse(
@@ -124,17 +133,34 @@ class Agent:
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}")
             return AgentResponse(
-                message="I encountered an error processing your message. Please try again.",
+                message=f"I encountered an error processing your message: {str(e)}",
                 tool_calls=[],
                 metadata={"error": str(e)}
             )
 
-    async def _process_response(self, response: Dict[str, Any]) -> AgentResponse:
+    async def _process_response(self, response: Dict[str, Any], original_message: str) -> AgentResponse:
         """Process the LLM response and handle tool calls"""
         try:
             message = response.get("content", "") or ""
-            tool_calls = response.get("tool_calls", [])
+            tool_calls = []
             metadata = {}
+
+            # Extract tool calls from the message for non-function-calling models
+            if not self.llm.provider.supports_functions:
+                tool_call_pattern = r'<tool_call>\s*({[^}]+})\s*</tool_call>'
+                matches = re.finditer(tool_call_pattern, message)
+
+                for match in matches:
+                    try:
+                        tool_call = json.loads(match.group(1))
+                        tool_calls.append(tool_call)
+                        # Remove the tool call from the message
+                        message = message.replace(match.group(0), "")
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Error parsing tool call JSON: {e}")
+            else:
+                # Use standard function calling response format
+                tool_calls = response.get("tool_calls", [])
 
             # Execute tools and get results if any tool calls present
             if tool_calls:
@@ -148,10 +174,10 @@ class Agent:
                         message
                     )
                     if follow_up:
-                        message = (message or "") + "\n\n" + follow_up
+                        message = (message or "").strip() + "\n\n" + follow_up
 
             return AgentResponse(
-                message=message,
+                message=message.strip(),
                 tool_calls=tool_calls,
                 metadata=metadata
             )
@@ -166,13 +192,22 @@ class Agent:
 
     async def _gather_context(self, message: str) -> Dict[str, Any]:
         """Gather context from memory and knowledge base"""
-        context = {
-            "memory": await self.memory.get_relevant_memories(message),
-            "knowledge": []
-        }
+        context = {}
 
-        if self.knowledge_base:
-            context["knowledge"] = await self.knowledge_base.query(message)
+        try:
+            # Get relevant memories if available
+            memories = await self.memory.get_relevant_memories(message)
+            if memories:
+                context["memory"] = memories
+
+            # Query knowledge base if available
+            if self.knowledge_base:
+                kb_results = await self.knowledge_base.query(message)
+                if kb_results:
+                    context["knowledge"] = kb_results
+
+        except Exception as e:
+            logger.error(f"Error gathering context: {str(e)}")
 
         return context
 
@@ -184,6 +219,7 @@ class Agent:
             tool_name = call.get("name")
             parameters = call.get("parameters", {})
 
+            # Find matching tool
             tool = next(
                 (t for t in self.tools if t.name == tool_name), 
                 None
@@ -192,12 +228,21 @@ class Agent:
             if tool:
                 try:
                     result = await tool.execute(**parameters)
-                    results.append({
-                        "tool": tool_name,
-                        "success": result.success,
-                        "result": result.result,
-                        "error": result.error
-                    })
+                    if isinstance(result, ToolResponse):
+                        results.append({
+                            "tool": tool_name,
+                            "success": result.success,
+                            "result": result.result,
+                            "error": result.error
+                        })
+                    else:
+                        logger.warning(f"Tool {tool_name} returned invalid response type")
+                        results.append({
+                            "tool": tool_name,
+                            "success": False,
+                            "result": None,
+                            "error": "Invalid tool response format"
+                        })
                 except Exception as e:
                     logger.error(f"Error executing tool {tool_name}: {str(e)}")
                     results.append({
@@ -211,19 +256,32 @@ class Agent:
 
     def _get_default_system_prompt(self) -> str:
         """Get the default system prompt for the agent"""
-        tools_desc = "\n".join(
+        base_prompt = f"""You are {self.name}, an AI assistant that helps users with their tasks."""
+
+        if not self.tools:
+            return base_prompt
+
+        tool_descriptions = "\n".join(
             f"- {tool.name}: {tool.description}" 
             for tool in self.tools
         )
-        return f"""You are {self.name}, an AI assistant that helps users with their tasks.
+
+        # Adjust prompt based on whether the model supports function calling
+        if self.llm.provider.supports_functions:
+            return f"{base_prompt}\n\nYou have access to the following tools:\n\n{tool_descriptions}"
+        else:
+            return f"""{base_prompt}
+
 You have access to the following tools:
 
-{tools_desc}
+{tool_descriptions}
 
 When you need to use a tool, use this format in your response:
 <tool_call>
 {{"name": "tool_name", "parameters": {{"query": "your query"}}}}
-</tool_call>"""
+</tool_call>
+
+After using a tool, summarize its results in a clear and helpful way."""
 
 class AgentBuilder:
     """Builder class for creating agents with a fluent interface"""

@@ -1,73 +1,131 @@
 """Mock implementations of external dependencies for development"""
 
+from typing import List, Dict, Any
+
 class LiteLLM:
     def __init__(self, model: str):
         self.model = model
+        self.supports_functions = not model.startswith("anthropic/")
 
-    async def generate(self, prompt: str) -> str:
+    async def generate(self, messages: List[Dict[str, str]]) -> Dict[str, Any]:
         """Generate a mock response that demonstrates tool usage"""
+        prompt = messages[-1]["content"].lower()
+
         # GPT-4 responses are more detailed and use more tools
-        if self.model == "gpt-4":
-            if "latest AI trends" in prompt.lower():
-                return """Based on my research capabilities, let me gather comprehensive information about AI trends.
+        if self.model.startswith("openai/"):
+            if "trends" in prompt or "developments" in prompt:
+                return {
+                    "content": "Let me search for the latest information.\n",
+                    "tool_calls": [{
+                        "name": "web_search",
+                        "parameters": {
+                            "query": "latest AI trends and developments 2024"
+                        }
+                    }]
+                }
+
+            # Knowledge base query example
+            if "context" in prompt or "previous" in prompt:
+                return {
+                    "content": "Let me check our knowledge base.\n",
+                    "tool_calls": [{
+                        "name": "RAGTool",
+                        "parameters": {
+                            "query": "AI trends and developments"
+                        }
+                    }]
+                }
+
+        # Anthropic models use text-based tool calls
+        elif self.model.startswith("anthropic/"):
+            if "trends" in prompt or "developments" in prompt:
+                return {
+                    "content": """Let me search for the latest information.
 
 <tool_call>
-{
-    "name": "WebSearchTool",
-    "parameters": {
-        "query": "latest developments in enterprise AI and machine learning 2024"
-    }
-}
+{"name": "web_search", "parameters": {"query": "latest AI trends and developments 2024"}}
 </tool_call>
 
-The search results indicate several key trends in enterprise AI:
-1. Large Language Models (LLMs) becoming more accessible
-2. AI-powered automation in business processes
-3. Enhanced focus on AI governance and ethics
+Based on the search results:
+1. Large Language Models are becoming more accessible
+2. Focus on AI governance and ethics
+3. Increased enterprise adoption"""
+                }
 
-Let me check our knowledge base for additional context.
+            if "context" in prompt or "previous" in prompt:
+                return {
+                    "content": """I'll check our knowledge base for relevant information.
 
 <tool_call>
-{
-    "name": "RAGTool",
-    "parameters": {
-        "query": "enterprise AI applications case studies"
-    }
-}
+{"name": "RAGTool", "parameters": {"query": "AI trends and developments"}}
 </tool_call>
 
-This comprehensive analysis should help inform strategic decisions about AI implementation."""
+The knowledge base shows several key developments in AI technology."""
+                }
 
-        # GPT-3.5 responses are more concise and focused
-        if "summary" in prompt.lower():
-            return """Here's a clear summary of the AI trends:
-
-• Growing adoption of LLMs in enterprises
-• Increased focus on AI automation
-• Rising importance of AI governance
-• Practical applications in various sectors
-
-Would you like more specific details about any of these points?"""
-
-        return "I understand your request and am ready to help with your specific needs."
+        # Default response for other cases
+        return {
+            "content": "I understand your request and will help you with that. What specific information would you like to know?"
+        }
 
 class Document:
+    """Mock document class for development"""
     def __init__(self, content: str):
+        """Initialize document with content
+
+        Args:
+            content: The document content
+        """
         self.content = content
 
 class KnowledgeBase:
-    async def add_document(self, path: str):
-        # Mock implementation - store document path
-        self.last_added = path
+    """Mock knowledge base for development"""
+    def __init__(self):
+        """Initialize the knowledge base"""
+        self.documents = []
 
-    async def query(self, query: str):
-        if "enterprise ai" in query.lower():
-            return [
-                "Enterprise AI adoption increased by 150% in 2024",
-                "Major companies implementing AI governance frameworks",
-                "Case studies show 40% efficiency improvements with AI automation"
-            ]
-        return []
+    async def add_document(self, document: Document):
+        """Add a document to the knowledge base
+
+        Args:
+            document: Document object to add
+        """
+        self.documents.append(document)
+
+    async def query(self, query: str) -> list[str]:
+        """Query the knowledge base
+
+        Args:
+            query: Query string
+
+        Returns:
+            List of relevant document contents
+        """
+        # Simple mock implementation - return content containing query terms
+        results = []
+        query_terms = query.lower().split()
+
+        for doc in self.documents:
+            content = doc.content.lower()
+            if any(term in content for term in query_terms):
+                results.append(doc.content)
+
+        # If no exact matches, return some default insights
+        if not results:
+            if "enterprise" in query.lower():
+                return [
+                    "Enterprise AI adoption increased significantly",
+                    "Major focus on AI governance frameworks",
+                    "Efficiency improvements with AI automation"
+                ]
+            elif "ai" in query.lower():
+                return [
+                    "AI models becoming more sophisticated",
+                    "Focus on responsible AI development",
+                    "Increased adoption in various sectors"
+                ]
+
+        return results[:3]  # Limit results
 
 class HawkinDB:
     def __init__(self, **kwargs):

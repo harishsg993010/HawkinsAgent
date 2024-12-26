@@ -2,11 +2,12 @@
 
 from hawkins_agent import AgentBuilder
 from hawkins_agent.tools import RAGTool, WebSearchTool
-from hawkins_agent.mock import KnowledgeBase
+from hawkins_agent.mock import KnowledgeBase, Document
 from hawkins_agent.flow import FlowManager, FlowStep
 from hawkins_agent.llm import LiteLLMProvider
 import logging
 import os
+import asyncio
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -25,10 +26,33 @@ async def main():
         research_kb = KnowledgeBase()
         support_kb = KnowledgeBase()
 
-        # Simulate loading documents
-        logger.info("Loading knowledge base documents...")
-        await research_kb.add_document("docs/research.pdf")
-        await support_kb.add_document("docs/support.pdf")
+        # Create mock data instead of loading files
+        logger.info("Creating mock knowledge base data...")
+
+        # Create Document objects with content
+        research_docs = [
+            Document("AI is rapidly evolving with focus on multimodal models and efficient training"),
+            Document("Enterprises are adopting AI for automation and decision support"),
+            Document("Latest research focuses on making AI more reliable and explainable")
+        ]
+
+        support_docs = [
+            Document("Follow industry standards for AI implementation"),
+            Document("Ensure ethical AI usage and proper documentation"),
+            Document("Provide comprehensive support for AI integration")
+        ]
+
+        # Add documents to knowledge bases
+        for doc in research_docs:
+            await research_kb.add_document(doc)
+        for doc in support_docs:
+            await support_kb.add_document(doc)
+
+        # Get Tavily API key for web search
+        tavily_api_key = os.getenv("TAVILY_API_KEY")
+        if not tavily_api_key:
+            logger.error("TAVILY_API_KEY environment variable not set")
+            return
 
         # Create research agent with GPT-4o for complex analysis
         logger.info("Creating research agent...")
@@ -36,25 +60,25 @@ async def main():
                      .with_model("openai/gpt-4o")  # Latest OpenAI model
                      .with_provider(LiteLLMProvider, temperature=0.7)
                      .with_knowledge_base(research_kb)
-                     .with_tool(WebSearchTool())
+                     .with_tool(WebSearchTool(api_key=tavily_api_key))
                      .with_memory({"retention_days": 7})
                      .build())
 
         # Create support agent with Claude 3 Sonnet for summarization
         logger.info("Creating support agent...")
         support = (AgentBuilder("support")
-                  .with_model("anthropic/claude-3-sonnet-20240229")  # Claude 3 for summaries
-                  .with_provider(LiteLLMProvider, temperature=0.5)
-                  .with_knowledge_base(support_kb)
-                  .with_tool(RAGTool(support_kb))
-                  .with_memory({"retention_days": 30})
-                  .build())
+                   .with_model("anthropic/claude-3-sonnet-20240229")  # Claude 3 for summaries
+                   .with_provider(LiteLLMProvider, temperature=0.5)
+                   .with_knowledge_base(support_kb)
+                   .with_tool(RAGTool(support_kb))
+                   .with_memory({"retention_days": 30})
+                   .build())
 
         # Create flow steps
         async def research_step(data: dict) -> dict:
             """Execute research phase"""
             response = await researcher.process(
-                "Find latest AI trends",
+                "Analyze current AI trends and their impact on enterprise applications",
                 context={"focus": data.get("focus", "enterprise applications")}
             )
             return {
@@ -117,5 +141,4 @@ async def main():
         raise
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())

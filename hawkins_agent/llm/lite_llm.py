@@ -17,6 +17,7 @@ class LiteLLMProvider(BaseLLMProvider):
         super().__init__(model, **kwargs)
         self.default_model = "openai/gpt-4o"
         self.config = kwargs
+        self.supports_functions = not model.startswith("anthropic/")
 
     async def generate(self, messages: List[Message], tools: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """Generate a response using litellm"""
@@ -31,8 +32,8 @@ class LiteLLMProvider(BaseLLMProvider):
                 "temperature": self.config.get('temperature', 0.7)
             }
 
-            if tools:
-                # Format tools as OpenAI functions
+            # Only add function calling for supported models
+            if tools and self.supports_functions:
                 request_params["functions"] = tools
                 request_params["function_call"] = "auto"
 
@@ -56,29 +57,29 @@ class LiteLLMProvider(BaseLLMProvider):
                 "tool_calls": []
             }
 
-            # Handle function calls (OpenAI format)
-            if hasattr(message, 'function_call') and message.function_call:
-                try:
-                    result["tool_calls"] = [{
-                        "name": message.function_call.name,
-                        "parameters": json.loads(message.function_call.arguments)
-                    }]
-                except (AttributeError, json.JSONDecodeError) as e:
-                    logger.error(f"Error parsing function call: {e}")
+            # Handle function calls for supported models
+            if self.supports_functions:
+                if hasattr(message, 'function_call') and message.function_call:
+                    try:
+                        result["tool_calls"] = [{
+                            "name": message.function_call.name,
+                            "parameters": json.loads(message.function_call.arguments)
+                        }]
+                    except (AttributeError, json.JSONDecodeError) as e:
+                        logger.error(f"Error parsing function call: {e}")
 
-            # Handle tool calls (alternate format)
-            elif hasattr(message, 'tool_calls') and message.tool_calls:
-                try:
-                    result["tool_calls"] = [
-                        {
-                            "name": tool_call.function.name,
-                            "parameters": json.loads(tool_call.function.arguments)
-                        }
-                        for tool_call in message.tool_calls
-                        if hasattr(tool_call, 'function')
-                    ]
-                except (AttributeError, json.JSONDecodeError) as e:
-                    logger.error(f"Error parsing tool calls: {e}")
+                elif hasattr(message, 'tool_calls') and message.tool_calls:
+                    try:
+                        result["tool_calls"] = [
+                            {
+                                "name": tool_call.function.name,
+                                "parameters": json.loads(tool_call.function.arguments)
+                            }
+                            for tool_call in message.tool_calls
+                            if hasattr(tool_call, 'function')
+                        ]
+                    except (AttributeError, json.JSONDecodeError) as e:
+                        logger.error(f"Error parsing tool calls: {e}")
 
             logger.info("Successfully generated response from LiteLLM")
             logger.debug(f"Response: {json.dumps(result, indent=2)}")
