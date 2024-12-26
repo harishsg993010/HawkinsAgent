@@ -1,0 +1,27 @@
+[project]
+name = "hawkins-agent"
+version = "0.1.0"
+description = "A Python SDK for building AI agents with minimal code using Hawkins ecosystem"
+requires-python = ">=3.11"
+dependencies = [
+    "aiohttp>=3.8.0",
+    "hatchling>=1.27.0",
+    "python-dotenv>=0.19.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=22.0.0",
+    "mypy>=1.0.0"
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
