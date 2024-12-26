@@ -1,7 +1,7 @@
 """Core Agent implementation"""
 
 from typing import List, Optional, Dict, Any, Type, Union
-from .llm import LLMManager
+from .llm import LLMManager, BaseLLMProvider, LiteLLMProvider
 from .mock import Document, KnowledgeBase
 from .memory import MemoryManager
 from .tools.base import BaseTool
@@ -31,14 +31,16 @@ class Agent:
     def __init__(
         self,
         name: str,
-        llm_model: str = "gpt-3.5-turbo",
+        llm_model: str = "gpt-4o",
+        llm_provider_class: Type[BaseLLMProvider] = LiteLLMProvider,
+        llm_config: Optional[Dict[str, Any]] = None,
         knowledge_base: Optional[KnowledgeBase] = None,
         tools: Optional[List[BaseTool]] = None,
         memory_config: Optional[Dict[str, Any]] = None,
         system_prompt: Optional[str] = None
     ):
         self.name = name
-        self.llm = LLMManager(model=llm_model)
+        self.llm = LLMManager(model=llm_model, provider_class=llm_provider_class, config=llm_config)
         self.knowledge_base = knowledge_base
         self.tools = tools or []
         self.memory = MemoryManager(config=memory_config)
@@ -341,14 +343,27 @@ class AgentBuilder:
 
     def __init__(self, name: str):
         self.name = name
-        self.llm_model = "gpt-3.5-turbo"
+        self.llm_model = "gpt-4o"  # Default to latest model
+        self.llm_provider_class = LiteLLMProvider
         self.knowledge_base = None
         self.tools = []
         self.memory_config = {}
+        self.llm_config = {}
 
     def with_model(self, model: str) -> "AgentBuilder":
         """Set the LLM model"""
         self.llm_model = model
+        return self
+
+    def with_provider(self, provider_class: Type[BaseLLMProvider], **config) -> "AgentBuilder":
+        """Set custom LLM provider with configuration
+
+        Args:
+            provider_class: Custom LLM provider class
+            **config: Provider-specific configuration
+        """
+        self.llm_provider_class = provider_class
+        self.llm_config = config
         return self
 
     def with_knowledge_base(self, kb: KnowledgeBase) -> "AgentBuilder":
@@ -371,6 +386,8 @@ class AgentBuilder:
         return Agent(
             name=self.name,
             llm_model=self.llm_model,
+            llm_provider_class=self.llm_provider_class,
+            llm_config=self.llm_config,
             knowledge_base=self.knowledge_base,
             tools=self.tools,
             memory_config=self.memory_config

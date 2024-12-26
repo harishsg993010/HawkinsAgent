@@ -3,6 +3,7 @@
 from hawkins_agent import AgentBuilder
 from hawkins_agent.tools import EmailTool, WebSearchTool
 from hawkins_agent.mock import KnowledgeBase
+from hawkins_agent.llm import LiteLLMProvider
 import logging
 
 # Set up logging
@@ -15,8 +16,11 @@ async def main():
         # Create a knowledge base
         kb = KnowledgeBase()
 
-        # Create an agent with minimal configuration
+        # Create an agent with GPT-4o
+        logger.info("Creating agent with GPT-4o...")
         agent = (AgentBuilder("assistant")
+                .with_model("openai/gpt-4o")  # Use latest OpenAI model
+                .with_provider(LiteLLMProvider, temperature=0.7)
                 .with_knowledge_base(kb)
                 .with_tool(EmailTool())
                 .with_tool(WebSearchTool())
@@ -39,7 +43,8 @@ async def main():
                 logger.info(f"Parameters: {call['parameters']}")
 
     except Exception as e:
-        logger.error(f"Error running simple agent: {str(e)}")
+        logger.error(f"Error running simple agent: {str(e)}", exc_info=True)
+        raise
 
 if __name__ == "__main__":
     import asyncio

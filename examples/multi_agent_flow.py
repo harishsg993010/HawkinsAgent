@@ -4,8 +4,12 @@ from hawkins_agent import AgentBuilder
 from hawkins_agent.tools import RAGTool, WebSearchTool
 from hawkins_agent.mock import KnowledgeBase
 from hawkins_agent.flow import FlowManager, FlowStep
+from hawkins_agent.llm import LiteLLMProvider
 import logging
+import os
 
+# Setup logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 async def main():
@@ -26,17 +30,21 @@ async def main():
         await research_kb.add_document("docs/research.pdf")
         await support_kb.add_document("docs/support.pdf")
 
+        # Create research agent with GPT-4o for complex analysis
         logger.info("Creating research agent...")
         researcher = (AgentBuilder("researcher")
-                     .with_model("gpt-4")  # Use more capable model for research
+                     .with_model("openai/gpt-4o")  # Latest OpenAI model
+                     .with_provider(LiteLLMProvider, temperature=0.7)
                      .with_knowledge_base(research_kb)
                      .with_tool(WebSearchTool())
                      .with_memory({"retention_days": 7})
                      .build())
 
+        # Create support agent with Claude 3 Sonnet for summarization
         logger.info("Creating support agent...")
         support = (AgentBuilder("support")
-                  .with_model("gpt-3.5-turbo")  # Use faster model for support
+                  .with_model("anthropic/claude-3-sonnet-20240229")  # Claude 3 for summaries
+                  .with_provider(LiteLLMProvider, temperature=0.5)
                   .with_knowledge_base(support_kb)
                   .with_tool(RAGTool(support_kb))
                   .with_memory({"retention_days": 30})
