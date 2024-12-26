@@ -1,11 +1,12 @@
 """Example of creating a simple agent"""
 
 from hawkins_agent import AgentBuilder
-from hawkins_agent.tools import EmailTool, WebSearchTool
+from hawkins_agent.tools import WebSearchTool
 from hawkins_agent.mock import KnowledgeBase
 from hawkins_agent.llm import LiteLLMProvider
 import logging
 import os
+import asyncio
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -26,19 +27,28 @@ async def main():
         # Configure search tool with Tavily
         search_tool = WebSearchTool(api_key=tavily_api_key)
 
-        # Create an agent with GPT-4o
+        # Create an agent with GPT-4o and tools
         logger.info("Creating agent with GPT-4o...")
         agent = (AgentBuilder("assistant")
                 .with_model("openai/gpt-4o")  # Use latest OpenAI model
                 .with_provider(LiteLLMProvider, temperature=0.7)
                 .with_knowledge_base(kb)
                 .with_tool(search_tool)
-                .with_tool(EmailTool())
                 .build())
 
         # Test the agent with a search query
-        logger.info("Testing agent with a search query...")
-        response = await agent.process("Can you search for information about the latest AI developments?")
+        logger.info("\nTesting agent with a search query...")
+
+        # Define the system message to properly use tools
+        system_message = """You are a helpful AI assistant with access to a web search tool.
+When asked to search for information, always use the WebSearchTool to get accurate and up-to-date information.
+After getting search results, summarize them in a clear and organized way."""
+
+        # Add the query with system message
+        response = await agent.process(
+            "Can you search for information about the latest AI developments?",
+            system_prompt=system_message
+        )
 
         # Print response details
         logger.info("\nAgent Response:")
@@ -57,5 +67,4 @@ async def main():
         raise
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())

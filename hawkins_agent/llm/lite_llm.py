@@ -5,16 +5,12 @@ import json
 import logging
 from litellm import acompletion
 from .base import BaseLLMProvider
-from ..types import Message, MessageRole
+from ..types import Message, MessageRole, ToolResponse
 
 logger = logging.getLogger(__name__)
 
 class LiteLLMProvider(BaseLLMProvider):
-    """LiteLLM integration for language model access
-
-    This provider implements the BaseLLMProvider interface using litellm,
-    providing a consistent interface for model management and response parsing.
-    """
+    """LiteLLM integration for language model access"""
 
     def __init__(self, model: str, **kwargs):
         """Initialize LiteLLM provider
@@ -29,14 +25,15 @@ class LiteLLMProvider(BaseLLMProvider):
         self.default_model = "openai/gpt-4o"
         self.config = kwargs
 
-    async def generate(self, messages: List[Message]) -> str:
+    async def generate(self, messages: List[Message], tools: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """Generate a response using litellm
 
         Args:
             messages: List of conversation messages
+            tools: Optional list of tool definitions
 
         Returns:
-            Generated response text
+            Generated response with possible tool calls
 
         Raises:
             Exception: If there's an error during generation
@@ -45,12 +42,19 @@ class LiteLLMProvider(BaseLLMProvider):
             formatted_messages = self._format_messages_for_litellm(messages)
             logger.info(f"Sending request to LiteLLM with model: {self.model or self.default_model}")
 
+            request_params = {
+                "model": self.model or self.default_model,
+                "messages": formatted_messages,
+                "temperature": self.config.get('temperature', 0.7)
+            }
+
+            # Add tools if provided
+            if tools:
+                request_params["tools"] = tools
+                request_params["tool_choice"] = "auto"
+
             # Use acompletion for async support
-            response = await acompletion(
-                model=self.model or self.default_model,
-                messages=formatted_messages,
-                temperature=self.config.get('temperature', 0.7)
-            )
+            response = await acompletion(**request_params)
 
             if not response:
                 raise ValueError("No response received from language model")
@@ -60,15 +64,26 @@ class LiteLLMProvider(BaseLLMProvider):
 
             # Handle response content based on model provider
             message = response.choices[0].message
-            if not message or not hasattr(message, 'content'):
+            if not message:
                 raise ValueError("Invalid message format in response")
 
-            content = message.content
-            if not content:
-                raise ValueError("Empty content in model response")
+            result = {
+                "content": message.content or "",
+                "tool_calls": []
+            }
+
+            # Handle tool calls if present
+            if hasattr(message, 'tool_calls') and message.tool_calls:
+                result["tool_calls"] = [
+                    {
+                        "name": tool_call.function.name,
+                        "parameters": json.loads(tool_call.function.arguments)
+                    }
+                    for tool_call in message.tool_calls
+                ]
 
             logger.info("Successfully generated response from LiteLLM")
-            return content
+            return result
 
         except Exception as e:
             logger.error(f"Error generating response: {str(e)}")

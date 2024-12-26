@@ -67,3 +67,7 @@ args = "python examples/model_test.py"
 
 [deployment]
 run = ["sh", "-c", "python examples/simple_agent.py"]
+
+[[ports]]
+localPort = 5000
+externalPort = 80
