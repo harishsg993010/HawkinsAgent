@@ -3,8 +3,8 @@ name = "hawkins-agent"
 version = "0.1.0"
 description = "A Python SDK for building AI agents with minimal code using Hawkins ecosystem with HawkinDB memory"
 requires-python = ">=3.11"
-readme = "docs/README.md"
-license = "MIT"
+readme = "README.md"
+license = { text = "MIT" }
 authors = [
     { name = "Harish Santhanalakshmi Ganesan" }
 ]
@@ -29,6 +29,7 @@ dependencies = [
     "openai>=1.58.1",
     "python-dotenv>=0.19.0",
     "serpapi>=0.1.5",
+    "setuptools>=75.6.0",
     "tavily-python>=0.5.0",
     "trafilatura>=2.0.0",
     "twine>=6.0.1",
