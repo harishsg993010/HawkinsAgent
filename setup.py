@@ -7,7 +7,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="hawkins-agent",
-    version="0.1.3",
+    version="0.1.4",
     author="Harish Santhanalakshmi Ganesan",
     description="A Python SDK for building AI agents with minimal code using Hawkins ecosystem with HawkinDB memory",
     long_description=long_description,
