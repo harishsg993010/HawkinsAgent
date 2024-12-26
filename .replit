@@ -43,6 +43,10 @@ args = "Test RAG"
 task = "workflow.run"
 args = "Trip Planner"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Documentation Check"
+
 [[workflows.workflow]]
 name = "Run Simple Agent"
 author = "agent"
@@ -154,6 +158,20 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python examples/maldives_trip_planner.py"
+
+[[workflows.workflow]]
+name = "Documentation Check"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "ls -l docs/"
 
 [deployment]
 run = ["sh", "-c", "python examples/simple_agent.py"]
