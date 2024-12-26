@@ -21,10 +21,6 @@ share/python-wheels/
 .installed.cfg
 *.egg
 
-# Documentation and examples
-docs/
-examples/
-
 # Environment
 .env
 .venv
@@ -46,7 +42,6 @@ venv.bak/
 *.sqlite3
 
 # Replit specific
-.replit
 .pythonlibs/
 .upm/
 .breakpoints
