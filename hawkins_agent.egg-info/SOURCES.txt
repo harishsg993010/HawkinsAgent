@@ -1,7 +1,6 @@
 README.md
 pyproject.toml
 setup.py
-docs/README.md
 hawkins_agent/__init__.py
 hawkins_agent/agent.py
 hawkins_agent/flow.py

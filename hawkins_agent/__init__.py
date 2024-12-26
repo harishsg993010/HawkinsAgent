@@ -8,6 +8,6 @@ from .types import Message, AgentResponse
 from .tools.base import BaseTool
 from .flow import FlowManager, FlowStep
 
-__version__ = "0.1.0"
+__version__ = "0.1.3"
 __all__ = ["Agent", "AgentBuilder", "Message", "AgentResponse", "BaseTool", 
            "FlowManager", "FlowStep"]
