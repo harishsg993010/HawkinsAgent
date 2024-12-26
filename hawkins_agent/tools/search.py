@@ -1,7 +1,8 @@
 """Web search tool implementation using Tavily API"""
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 import logging
+import json
 from tavily import TavilyClient
 from .base import BaseTool
 from ..types import ToolResponse
@@ -11,9 +12,13 @@ logger = logging.getLogger(__name__)
 class WebSearchTool(BaseTool):
     """Tool for web searching using Tavily AI"""
 
-    def __init__(self, api_key: str, name: Optional[str] = None):
-        """Initialize the search tool"""
-        super().__init__(name=name or "WebSearchTool")
+    def __init__(self, api_key: str):
+        """Initialize the search tool
+
+        Args:
+            api_key: Tavily API key for authentication
+        """
+        super().__init__(name="web_search")
         self.client = TavilyClient(api_key=api_key)
 
     @property 
@@ -22,7 +27,14 @@ class WebSearchTool(BaseTool):
         return "Search the web for recent and accurate information using Tavily AI"
 
     def validate_params(self, params: Dict[str, Any]) -> bool:
-        """Validate search parameters"""
+        """Validate search parameters
+
+        Args:
+            params: Dictionary of parameters to validate
+
+        Returns:
+            True if parameters are valid, False otherwise
+        """
         if 'query' not in params:
             logger.error("Missing required 'query' parameter")
             return False
@@ -35,7 +47,14 @@ class WebSearchTool(BaseTool):
         return True
 
     async def execute(self, **kwargs) -> ToolResponse:
-        """Execute the web search"""
+        """Execute the web search
+
+        Args:
+            **kwargs: Must include 'query' parameter
+
+        Returns:
+            ToolResponse containing search results or error
+        """
         try:
             # Extract and validate query
             query = kwargs.get("query")
@@ -49,11 +68,25 @@ class WebSearchTool(BaseTool):
             logger.info(f"Executing Tavily search for query: {query}")
 
             # Execute search with Tavily
-            response = self.client.search(
-                query=query,
-                search_depth="advanced",
-                include_raw_content=False
-            )
+            search_params = {
+                "query": query,
+                "search_depth": "advanced",
+                "include_raw_content": False,
+                "include_domains": [],
+                "exclude_domains": [],
+                "max_results": 3
+            }
+
+            # Use synchronous search since Tavily client doesn't support async
+            response = self.client.search(query=query)
+
+            if not response or "results" not in response:
+                logger.error("Invalid response from Tavily API")
+                return ToolResponse(
+                    success=False,
+                    error="Invalid API response",
+                    result=None
+                )
 
             # Format the results
             results = []
@@ -61,14 +94,15 @@ class WebSearchTool(BaseTool):
                 results.append({
                     "title": result.get("title", ""),
                     "content": result.get("content", ""),
-                    "score": result.get("score", 0)
+                    "url": result.get("url", ""),
+                    "score": result.get("relevance_score", 0)
                 })
 
             # Create a concise summary
-            summary = f"Found {len(results)} relevant results:\n\n" + "\n\n".join(
-                f"- {result['content'][:250]}..." 
-                for result in results
-            )
+            summary = f"Found {len(results)} relevant results:\n\n"
+            for result in results:
+                summary += f"- {result['content'][:250]}...\n"
+                summary += f"  Source: {result['url']}\n\n"
 
             return ToolResponse(
                 success=True,
@@ -77,9 +111,10 @@ class WebSearchTool(BaseTool):
             )
 
         except Exception as e:
-            logger.error(f"Error during search: {str(e)}")
+            error_msg = f"Search failed: {str(e)}"
+            logger.error(error_msg)
             return ToolResponse(
                 success=False,
                 result=None,
-                error=f"Search failed: {str(e)}"
+                error=error_msg
             )

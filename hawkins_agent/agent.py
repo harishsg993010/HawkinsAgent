@@ -38,21 +38,36 @@ class Agent:
         self.memory = MemoryManager(config=memory_config)
         self.system_prompt = system_prompt or self._get_default_system_prompt()
 
-    def _get_default_system_prompt(self) -> str:
-        """Get the default system prompt for the agent"""
-        tools_desc = "\n".join(
-            f"- {tool.name}: {tool.description}" 
-            for tool in self.tools
-        )
-        return f"""You are {self.name}, an AI assistant that helps users with their tasks.
-You have access to the following tools:
+    async def _handle_tool_results(
+        self,
+        results: List[Dict[str, Any]],
+        original_message: str
+    ) -> Optional[str]:
+        """Handle tool execution results"""
+        try:
+            # Create prompt with results
+            result_prompt = "Based on the tool results:\n"
+            for result in results:
+                if result.get("success", False):
+                    result_prompt += f"\n- {result.get('result', '')}"
+                else:
+                    result_prompt += f"\n- Error: {result.get('error', 'Unknown error')}"
 
-{tools_desc}
+            result_prompt += "\n\nPlease provide a concise summary of these findings."
 
-When you need to use a tool, use this format in your response:
-<tool_call>
-{{"name": "tool_name", "parameters": {{"param1": "value1"}}}}
-</tool_call>"""
+            # Get follow-up response
+            response = await self.llm.generate_response(
+                messages=[Message(
+                    role=MessageRole.USER,
+                    content=result_prompt
+                )]
+            )
+
+            return response.get("content", "").strip() if response else ""
+
+        except Exception as e:
+            logger.error(f"Error handling tool results: {str(e)}")
+            return None
 
     async def process(self, message: str, context: Optional[Dict[str, Any]] = None) -> AgentResponse:
         """Process a user message"""
@@ -97,9 +112,14 @@ When you need to use a tool, use this format in your response:
             result = await self._process_response(response)
 
             # Update memory
-            await self.memory.add_interaction(message, result.message)
+            if result and result.message:  # Only update if we have a valid message
+                await self.memory.add_interaction(message, result.message)
 
-            return result
+            return result or AgentResponse(
+                message="Error processing response",
+                tool_calls=[],
+                metadata={"error": "Failed to process response"}
+            )
 
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}")
@@ -112,26 +132,23 @@ When you need to use a tool, use this format in your response:
     async def _process_response(self, response: Dict[str, Any]) -> AgentResponse:
         """Process the LLM response and handle tool calls"""
         try:
-            message = response.get("content", "")
-            tool_calls = []
+            message = response.get("content", "") or ""
+            tool_calls = response.get("tool_calls", [])
             metadata = {}
 
-            # Extract tool calls from message
-            if "tool_calls" in response:
-                tool_calls = response["tool_calls"]
-                if tool_calls:
-                    # Execute tools and get results
-                    tool_results = await self._execute_tools(tool_calls)
-                    metadata["tool_results"] = tool_results
+            # Execute tools and get results if any tool calls present
+            if tool_calls:
+                tool_results = await self._execute_tools(tool_calls)
+                metadata["tool_results"] = tool_results
 
-                    # Generate follow-up based on tool results
-                    if any(result["success"] for result in tool_results):
-                        follow_up = await self._handle_tool_results(
-                            tool_results, 
-                            message
-                        )
-                        if follow_up:
-                            message += f"\n\n{follow_up}"
+                # Generate follow-up based on tool results
+                if any(result.get("success", False) for result in tool_results):
+                    follow_up = await self._handle_tool_results(
+                        tool_results, 
+                        message
+                    )
+                    if follow_up:
+                        message = (message or "") + "\n\n" + follow_up
 
             return AgentResponse(
                 message=message,
@@ -146,37 +163,6 @@ When you need to use a tool, use this format in your response:
                 tool_calls=[],
                 metadata={"error": str(e)}
             )
-
-    async def _handle_tool_results(
-        self,
-        results: List[Dict[str, Any]],
-        original_message: str
-    ) -> Optional[str]:
-        """Handle tool execution results"""
-        try:
-            # Create prompt with results
-            result_prompt = "Based on the tool results:\n"
-            for result in results:
-                if result["success"]:
-                    result_prompt += f"\n- {result['result']}"
-                else:
-                    result_prompt += f"\n- Error: {result['error']}"
-
-            result_prompt += "\n\nPlease provide a concise summary of these findings."
-
-            # Get follow-up response
-            response = await self.llm.generate_response(
-                messages=[Message(
-                    role=MessageRole.USER,
-                    content=result_prompt
-                )]
-            )
-
-            return response.get("content", "").strip()
-
-        except Exception as e:
-            logger.error(f"Error handling tool results: {str(e)}")
-            return None
 
     async def _gather_context(self, message: str) -> Dict[str, Any]:
         """Gather context from memory and knowledge base"""
@@ -222,6 +208,22 @@ When you need to use a tool, use this format in your response:
                     })
 
         return results
+
+    def _get_default_system_prompt(self) -> str:
+        """Get the default system prompt for the agent"""
+        tools_desc = "\n".join(
+            f"- {tool.name}: {tool.description}" 
+            for tool in self.tools
+        )
+        return f"""You are {self.name}, an AI assistant that helps users with their tasks.
+You have access to the following tools:
+
+{tools_desc}
+
+When you need to use a tool, use this format in your response:
+<tool_call>
+{{"name": "tool_name", "parameters": {{"query": "your query"}}}}
+</tool_call>"""
 
 class AgentBuilder:
     """Builder class for creating agents with a fluent interface"""
