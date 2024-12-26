@@ -82,6 +82,7 @@ class WeatherTool(BaseTool):
             city_name, country_code = [part.strip() for part in query.split(',')]
 
             logger.info(f"Fetching weather data for {city_name}, {country_code}")
+            logger.debug(f"Using API key: {'*' * 4}{self.api_key[-4:]}")
 
             # Make API request
             try:
@@ -122,6 +123,8 @@ class WeatherTool(BaseTool):
                 }
 
                 logger.info(f"Successfully retrieved weather data for {city_name}")
+                logger.debug(f"Processed weather info: {weather_info}")
+
                 return ToolResponse(
                     success=True,
                     result=weather_info,

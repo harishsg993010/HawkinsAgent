@@ -31,6 +31,10 @@ args = "Run Tool Test"
 task = "workflow.run"
 args = "Weather Tool Test"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Blog Writer Flow"
+
 [[workflows.workflow]]
 name = "Run Simple Agent"
 author = "agent"
@@ -100,6 +104,20 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python examples/tool_test.py"
+
+[[workflows.workflow]]
+name = "Blog Writer Flow"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python examples/blog_writer_flow.py"
 
 [deployment]
 run = ["sh", "-c", "python examples/simple_agent.py"]
