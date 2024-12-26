@@ -7,10 +7,14 @@ from .base import BaseTool
 from .email import EmailTool
 from .search import WebSearchTool
 from .rag import RAGTool
+from .summarize import SummarizationTool
+from .code_interpreter import CodeInterpreterTool
 
 __all__ = [
     "BaseTool",
     "EmailTool", 
     "WebSearchTool",
-    "RAGTool"
+    "RAGTool",
+    "SummarizationTool",
+    "CodeInterpreterTool"
 ]
