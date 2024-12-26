@@ -36,19 +36,13 @@ async def main():
                 .with_tool(search_tool)
                 .build())
 
-        # Test the agent with a search query
         logger.info("\nTesting agent with a search query...")
 
-        # Define the system message to properly use tools
-        system_message = """You are a helpful AI assistant with access to a web search tool.
-When asked to search for information, always use the WebSearchTool to get accurate and up-to-date information.
-After getting search results, summarize them in a clear and organized way."""
+        # Test query
+        query = "What are the latest developments in AI technology in 2024?"
+        logger.info(f"Query: {query}")
 
-        # Add the query with system message
-        response = await agent.process(
-            "Can you search for information about the latest AI developments?",
-            system_prompt=system_message
-        )
+        response = await agent.process(query)
 
         # Print response details
         logger.info("\nAgent Response:")
@@ -61,6 +55,15 @@ After getting search results, summarize them in a clear and organized way."""
             for call in response.tool_calls:
                 logger.info(f"Tool: {call['name']}")
                 logger.info(f"Parameters: {call['parameters']}")
+
+        if "tool_results" in response.metadata:
+            logger.info("\nTool Results:")
+            logger.info("-" * 40)
+            for result in response.metadata["tool_results"]:
+                if result["success"]:
+                    logger.info(f"Success: {result['result']}")
+                else:
+                    logger.error(f"Error: {result['error']}")
 
     except Exception as e:
         logger.error(f"Error running simple agent: {str(e)}", exc_info=True)

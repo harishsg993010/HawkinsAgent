@@ -1,6 +1,6 @@
 """Web search tool implementation using Tavily API"""
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import logging
 from tavily import TavilyClient
 from .base import BaseTool
@@ -19,8 +19,7 @@ class WebSearchTool(BaseTool):
     @property 
     def description(self) -> str:
         """Get the tool description"""
-        return """Search the web for recent and accurate information using Tavily AI.
-                Use this tool by providing a 'query' parameter with your search terms."""
+        return "Search the web for recent and accurate information using Tavily AI"
 
     def validate_params(self, params: Dict[str, Any]) -> bool:
         """Validate search parameters"""
@@ -58,17 +57,22 @@ class WebSearchTool(BaseTool):
 
             # Format the results
             results = []
-            for result in response.get("results", []):
+            for result in response.get("results", [])[:3]:  # Limit to top 3 results
                 results.append({
                     "title": result.get("title", ""),
                     "content": result.get("content", ""),
-                    "url": result.get("url", ""),
                     "score": result.get("score", 0)
                 })
 
+            # Create a concise summary
+            summary = f"Found {len(results)} relevant results:\n\n" + "\n\n".join(
+                f"- {result['content'][:250]}..." 
+                for result in results
+            )
+
             return ToolResponse(
                 success=True,
-                result=results,
+                result=summary,
                 error=None
             )
 

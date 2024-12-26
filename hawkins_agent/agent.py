@@ -14,19 +14,7 @@ from dataclasses import asdict
 logger = logging.getLogger(__name__)
 
 class Agent:
-    """Main Agent class that handles interactions and tool usage
-
-    This class represents an AI agent that can process messages, use tools,
-    access knowledge bases, and maintain conversation memory.
-
-    Attributes:
-        name: The name of the agent
-        llm: The language model manager
-        knowledge_base: Optional knowledge base for information retrieval
-        tools: List of available tools
-        memory: Memory manager for conversation history
-        system_prompt: Custom system-level instructions
-    """
+    """Main Agent class that handles interactions and tool usage"""
 
     def __init__(
         self,
@@ -40,7 +28,11 @@ class Agent:
         system_prompt: Optional[str] = None
     ):
         self.name = name
-        self.llm = LLMManager(model=llm_model, provider_class=llm_provider_class, config=llm_config)
+        self.llm = LLMManager(
+            model=llm_model, 
+            provider_class=llm_provider_class,
+            **llm_config or {}
+        )
         self.knowledge_base = knowledge_base
         self.tools = tools or []
         self.memory = MemoryManager(config=memory_config)
@@ -48,60 +40,66 @@ class Agent:
 
     def _get_default_system_prompt(self) -> str:
         """Get the default system prompt for the agent"""
+        tools_desc = "\n".join(
+            f"- {tool.name}: {tool.description}" 
+            for tool in self.tools
+        )
         return f"""You are {self.name}, an AI assistant that helps users with their tasks.
-You have access to various tools and knowledge sources that you can use to help users.
-When using tools, format your response with clear tool calls using the specified JSON format."""
+You have access to the following tools:
+
+{tools_desc}
+
+When you need to use a tool, use this format in your response:
+<tool_call>
+{{"name": "tool_name", "parameters": {{"param1": "value1"}}}}
+</tool_call>"""
 
     async def process(self, message: str, context: Optional[Dict[str, Any]] = None) -> AgentResponse:
-        """Process a user message and return a response
-
-        This method handles the complete flow of:
-        1. Gathering context from memory and knowledge base
-        2. Constructing the message list with context
-        3. Getting and parsing the LLM response
-        4. Executing any tool calls
-        5. Updating memory with the interaction
-
-        Args:
-            message: The user's input message
-            context: Optional additional context for processing
-
-        Returns:
-            AgentResponse containing the agent's response and any tool results
-        """
+        """Process a user message"""
         try:
-            # Get context from memory and knowledge base
+            # Get context and construct messages
             combined_context = await self._gather_context(message)
             if context:
                 combined_context.update(context)
 
-            # Construct message list
-            messages = self._construct_messages(message, combined_context)
+            # Format messages list
+            messages = [
+                Message(role=MessageRole.SYSTEM, content=self.system_prompt)
+            ]
+            messages.append(Message(role=MessageRole.USER, content=message))
 
-            # Get LLM response
+            # Format tools for LLM
+            formatted_tools = []
+            if self.tools:
+                for tool in self.tools:
+                    formatted_tools.append({
+                        "name": tool.name,
+                        "description": tool.description,
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "query": {
+                                    "type": "string", 
+                                    "description": "The search query or parameters for the tool"
+                                }
+                            },
+                            "required": ["query"]
+                        }
+                    })
+
+            # Get LLM response with tool support
             response = await self.llm.generate_response(
                 messages=messages,
-                system_prompt=self.system_prompt
+                tools=formatted_tools if self.tools else None
             )
 
             # Parse response and handle tool calls
-            parsed_response = self._parse_response(response)
-
-            # Execute tool calls if any
-            if parsed_response.tool_calls:
-                tool_results = await self._execute_tools(parsed_response.tool_calls)
-                parsed_response.metadata["tool_results"] = tool_results
-
-                # If tools were used, potentially follow up
-                if any(result["success"] for result in tool_results):
-                    follow_up = await self._handle_tool_results(tool_results, message, messages)
-                    if follow_up:
-                        parsed_response.message += f"\n\n{follow_up}"
+            result = await self._process_response(response)
 
             # Update memory
-            await self.memory.add_interaction(message, parsed_response.message)
+            await self.memory.add_interaction(message, result.message)
 
-            return parsed_response
+            return result
 
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}")
@@ -111,213 +109,100 @@ When using tools, format your response with clear tool calls using the specified
                 metadata={"error": str(e)}
             )
 
-    async def _gather_context(self, message: str) -> Dict[str, Any]:
-        """Gather relevant context from memory and knowledge base
-
-        Args:
-            message: The user's input message
-
-        Returns:
-            Dictionary containing relevant memories and knowledge
-        """
+    async def _process_response(self, response: Dict[str, Any]) -> AgentResponse:
+        """Process the LLM response and handle tool calls"""
         try:
-            context = {
-                "memory": await self.memory.get_relevant_memories(message),
-                "knowledge": []
-            }
+            message = response.get("content", "")
+            tool_calls = []
+            metadata = {}
 
-            if self.knowledge_base:
-                context["knowledge"] = await self.knowledge_base.query(message)
+            # Extract tool calls from message
+            if "tool_calls" in response:
+                tool_calls = response["tool_calls"]
+                if tool_calls:
+                    # Execute tools and get results
+                    tool_results = await self._execute_tools(tool_calls)
+                    metadata["tool_results"] = tool_results
 
-            return context
-        except Exception as e:
-            logger.error(f"Error gathering context: {str(e)}")
-            return {"memory": [], "knowledge": []}
+                    # Generate follow-up based on tool results
+                    if any(result["success"] for result in tool_results):
+                        follow_up = await self._handle_tool_results(
+                            tool_results, 
+                            message
+                        )
+                        if follow_up:
+                            message += f"\n\n{follow_up}"
 
-    def _construct_messages(self, message: str, context: Dict[str, Any]) -> List[Message]:
-        """Construct the message list for the LLM
-
-        Args:
-            message: The user's input message
-            context: Dictionary containing memory and knowledge context
-
-        Returns:
-            List of Message objects for the LLM
-        """
-        try:
-            # Add context message
-            messages = [Message(
-                role=MessageRole.SYSTEM,
-                content=self._format_context(context)
-            )]
-
-            # Add user message
-            messages.append(Message(
-                role=MessageRole.USER,
-                content=message
-            ))
-
-            return messages
-
-        except Exception as e:
-            logger.error(f"Error constructing messages: {str(e)}")
-            return [Message(role=MessageRole.USER, content=message)]
-
-    def _format_context(self, context: Dict[str, Any]) -> str:
-        """Format context into a string for the LLM
-
-        Args:
-            context: Dictionary containing context information
-
-        Returns:
-            Formatted context string
-        """
-        try:
-            tool_descriptions = "\n".join(
-                f"- {tool.name}: {tool.description}" for tool in self.tools
+            return AgentResponse(
+                message=message,
+                tool_calls=tool_calls,
+                metadata=metadata
             )
 
-            return f"""Context from memory:
-{json.dumps(context['memory'], indent=2)}
-
-Relevant knowledge:
-{json.dumps(context['knowledge'], indent=2)}
-
-Available tools:
-{tool_descriptions}
-
-To use a tool, include a JSON block in your response:
-<tool_call>
-{{"name": "tool_name", "parameters": {{"param1": "value1"}}}}
-</tool_call>"""
-
         except Exception as e:
-            logger.error(f"Error formatting context: {str(e)}")
-            return "Error retrieving context"
+            logger.error(f"Error processing response: {str(e)}")
+            return AgentResponse(
+                message=str(response.get("content", "")),
+                tool_calls=[],
+                metadata={"error": str(e)}
+            )
 
     async def _handle_tool_results(
         self,
         results: List[Dict[str, Any]],
-        original_message: str,
-        previous_messages: List[Message]
+        original_message: str
     ) -> Optional[str]:
-        """Handle tool execution results and generate follow-up response if needed
-
-        Args:
-            results: List of tool execution results
-            original_message: The original user message
-            previous_messages: Previous conversation messages
-
-        Returns:
-            Optional follow-up response string
-        """
+        """Handle tool execution results"""
         try:
-            # Add tool results to message history
-            tool_result_message = Message(
-                role=MessageRole.SYSTEM,
-                content=f"Tool execution results:\n{json.dumps(results, indent=2)}"
+            # Create prompt with results
+            result_prompt = "Based on the tool results:\n"
+            for result in results:
+                if result["success"]:
+                    result_prompt += f"\n- {result['result']}"
+                else:
+                    result_prompt += f"\n- Error: {result['error']}"
+
+            result_prompt += "\n\nPlease provide a concise summary of these findings."
+
+            # Get follow-up response
+            response = await self.llm.generate_response(
+                messages=[Message(
+                    role=MessageRole.USER,
+                    content=result_prompt
+                )]
             )
 
-            messages = previous_messages + [tool_result_message]
-
-            # Generate follow-up response if needed
-            if any(result["success"] for result in results):
-                follow_up = await self.llm.generate_response(
-                    messages=messages,
-                    system_prompt="Review the tool results and provide a follow-up response if needed."
-                )
-                return follow_up.strip()
-
-            return None
+            return response.get("content", "").strip()
 
         except Exception as e:
             logger.error(f"Error handling tool results: {str(e)}")
             return None
 
-    def _parse_response(self, response: str) -> AgentResponse:
-        """Parse the LLM response and extract tool calls
+    async def _gather_context(self, message: str) -> Dict[str, Any]:
+        """Gather context from memory and knowledge base"""
+        context = {
+            "memory": await self.memory.get_relevant_memories(message),
+            "knowledge": []
+        }
 
-        Args:
-            response: Raw response from the LLM
+        if self.knowledge_base:
+            context["knowledge"] = await self.knowledge_base.query(message)
 
-        Returns:
-            AgentResponse containing parsed message and tool calls
-        """
-        try:
-            tool_calls = []
-            message = response
-
-            # Extract tool calls from response
-            tool_pattern = r"<tool_call>(.*?)</tool_call>"
-            matches = re.finditer(tool_pattern, response, re.DOTALL)
-
-            for match in matches:
-                try:
-                    tool_json = json.loads(match.group(1))
-                    if self._validate_tool_call(tool_json):
-                        tool_calls.append(tool_json)
-                    # Remove tool call from message
-                    message = message.replace(match.group(0), "")
-                except json.JSONDecodeError:
-                    logger.warning(f"Invalid tool call JSON: {match.group(1)}")
-                    continue
-
-            message = message.strip()
-
-            return AgentResponse(
-                message=message,
-                tool_calls=tool_calls,
-                metadata={}
-            )
-        except Exception as e:
-            logger.error(f"Error parsing response: {str(e)}")
-            return AgentResponse(
-                message=response,
-                tool_calls=[],
-                metadata={"error": str(e)}
-            )
-
-    def _validate_tool_call(self, tool_call: Dict[str, Any]) -> bool:
-        """Validate a tool call format and parameters
-
-        Args:
-            tool_call: Dictionary containing the tool call information
-
-        Returns:
-            True if the tool call is valid, False otherwise
-        """
-        try:
-            if not isinstance(tool_call, dict):
-                return False
-
-            required_keys = {"name", "parameters"}
-            if not all(key in tool_call for key in required_keys):
-                return False
-
-            tool = next((t for t in self.tools if t.name == tool_call["name"]), None)
-            if not tool:
-                return False
-
-            return tool.validate_params(tool_call["parameters"])
-        except Exception:
-            return False
+        return context
 
     async def _execute_tools(self, tool_calls: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Execute tool calls and return results
-
-        Args:
-            tool_calls: List of validated tool call dictionaries
-
-        Returns:
-            List of tool execution results
-        """
+        """Execute tool calls and return results"""
         results = []
 
         for call in tool_calls:
             tool_name = call.get("name")
             parameters = call.get("parameters", {})
 
-            tool = next((t for t in self.tools if t.name == tool_name), None)
+            tool = next(
+                (t for t in self.tools if t.name == tool_name), 
+                None
+            )
+
             if tool:
                 try:
                     result = await tool.execute(**parameters)
@@ -356,12 +241,7 @@ class AgentBuilder:
         return self
 
     def with_provider(self, provider_class: Type[BaseLLMProvider], **config) -> "AgentBuilder":
-        """Set custom LLM provider with configuration
-
-        Args:
-            provider_class: Custom LLM provider class
-            **config: Provider-specific configuration
-        """
+        """Set custom LLM provider with configuration"""
         self.llm_provider_class = provider_class
         self.llm_config = config
         return self
