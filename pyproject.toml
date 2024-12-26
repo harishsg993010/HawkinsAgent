@@ -3,21 +3,45 @@ name = "hawkins-agent"
 version = "0.1.0"
 description = "A Python SDK for building AI agents with minimal code using Hawkins ecosystem"
 requires-python = ">=3.11"
+readme = "docs/README.md"
+license = "MIT"
+authors = [
+    { name = "Harish Santhanalakshmi Ganesan" }
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "aiohttp>=3.8.0",
     "flask[async]>=3.1.0",
     "google-api-python-client>=2.156.0",
-    "hatchling>=1.27.0",
     "hawkins-rag>=0.1.0",
     "hawkinsdb>=1.0.1",
     "litellm>=1.0.0",
-    "open-interpreter>=0.4.3",
     "openai>=1.58.1",
     "python-dotenv>=0.19.0",
-    "sentence-transformers>=3.3.1",
     "serpapi>=0.1.5",
     "tavily-python>=0.5.0",
     "trafilatura>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=22.0.0",
+    "mypy>=1.0.0"
+]
+
+full = [
+    "build>=1.2.2.post1",
+    "twine>=6.0.1",
+    "wheel>=0.45.1",
 ]
 
 [build-system]
@@ -27,12 +51,9 @@ build-backend = "hatchling.build"
 [tool.hatch.metadata]
 allow-direct-references = true
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.0.0",
-    "black>=22.0.0",
-    "mypy>=1.0.0"
-]
-
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+[project.urls]
+Documentation = "https://github.com/hawkins-ai/hawkins-agent#readme"
+Source = "https://github.com/hawkins-ai/hawkins-agent"

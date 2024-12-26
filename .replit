@@ -11,41 +11,19 @@ name = "Project"
 mode = "parallel"
 author = "agent"
 
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
 [[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Run Simple Agent"
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python build_package.py"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Run Multi Agent Flow"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Test LLM Models"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Run Tool Test"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Weather Tool Test"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Blog Writer Flow"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Test RAG"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Trip Planner"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Documentation Check"
+args = "Build Package"
 
 [[workflows.workflow]]
 name = "Run Simple Agent"
@@ -172,6 +150,20 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "ls -l docs/"
+
+[[workflows.workflow]]
+name = "Build Package"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python build_package.py"
 
 [deployment]
 run = ["sh", "-c", "python examples/simple_agent.py"]
