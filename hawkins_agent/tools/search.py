@@ -1,24 +1,36 @@
-"""Web search tool implementation"""
+"""Web search tool implementation using Tavily API"""
 
-import aiohttp
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import logging
+from tavily import TavilyClient
 from .base import BaseTool
 from ..types import ToolResponse
 
 logger = logging.getLogger(__name__)
 
 class WebSearchTool(BaseTool):
-    """Tool for web searching
+    """Tool for web searching using Tavily AI
 
-    This tool provides web search capabilities to agents using a mock
-    implementation. In production, this would integrate with a real
-    search API.
+    This tool provides web search capabilities with:
+    - High-quality, recent information
+    - Smart filtering and ranking
+    - Easy-to-parse responses
     """
 
-    @property
+    def __init__(self, api_key: str, name: Optional[str] = None):
+        """Initialize the search tool
+
+        Args:
+            api_key: Tavily API key
+            name: Optional custom name for the tool
+        """
+        super().__init__(name=name or "WebSearchTool")
+        self.client = TavilyClient(api_key=api_key)
+
+    @property 
     def description(self) -> str:
-        return "Search the web for information"
+        """Get the tool description"""
+        return "Search the web for recent and accurate information using Tavily AI"
 
     def validate_params(self, params: Dict[str, Any]) -> bool:
         """Validate search parameters
@@ -29,44 +41,68 @@ class WebSearchTool(BaseTool):
         Returns:
             True if parameters are valid, False otherwise
         """
-        if 'query' not in params:
+        if not isinstance(params, dict):
+            logger.error("Parameters must be a dictionary")
+            return False
+
+        if "query" not in params:
             logger.error("Missing required 'query' parameter")
             return False
 
-        query = params['query']
+        query = params["query"]
         if not isinstance(query, str) or not query.strip():
             logger.error("Query must be a non-empty string")
             return False
 
         return True
 
-    async def execute(self, query: str, **kwargs) -> ToolResponse:
-        """Perform a web search
+    async def execute(self, **kwargs) -> ToolResponse:
+        """Execute the web search
 
         Args:
-            query: Search query string
-            **kwargs: Additional search parameters
+            **kwargs: Must include 'query' parameter
 
         Returns:
             ToolResponse containing search results or error
         """
         try:
-            async with aiohttp.ClientSession() as session:
-                # Implementation of web search logic
-                # For now, we're using the mock implementation
-                logger.info(f"Executing search for query: {query}")
-
+            query = kwargs.get("query")
+            if not query:
                 return ToolResponse(
-                    success=True,
-                    result=f"Search results for: {query}"
+                    success=False,
+                    result=None,
+                    error="Missing required 'query' parameter"
                 )
-        except aiohttp.ClientError as e:
-            logger.error(f"Network error during search: {str(e)}")
+
+            # Validate parameters
+            if not self.validate_params({"query": query}):
+                return ToolResponse(
+                    success=False,
+                    result=None,
+                    error="Invalid query parameter"
+                )
+
+            logger.info(f"Executing Tavily search for query: {query}")
+
+            # Execute search with Tavily
+            response = await self.client.search_async(query)
+
+            # Format the results
+            results = []
+            for result in response.get("results", []):
+                results.append({
+                    "title": result.get("title", ""),
+                    "snippet": result.get("content", ""),
+                    "url": result.get("url", ""),
+                    "score": result.get("score", 0)
+                })
+
             return ToolResponse(
-                success=False,
-                result=None,
-                error=f"Network error: {str(e)}"
+                success=True,
+                result={"results": results},
+                error=None
             )
+
         except Exception as e:
             logger.error(f"Error during search: {str(e)}")
             return ToolResponse(

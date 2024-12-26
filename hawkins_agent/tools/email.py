@@ -19,6 +19,7 @@ class EmailTool(BaseTool):
 
     @property
     def description(self) -> str:
+        """Get the tool description"""
         return "Send emails with specified subject and content"
 
     def validate_params(self, params: Dict[str, Any]) -> bool:
@@ -45,23 +46,29 @@ class EmailTool(BaseTool):
 
         return True
 
-    async def execute(self, 
-                     to: str,
-                     subject: str,
-                     content: str,
-                     **kwargs) -> ToolResponse:
+    async def execute(self, **kwargs) -> ToolResponse:
         """Send an email
 
         Args:
-            to: Recipient email address
-            subject: Email subject
-            content: Email body content
-            **kwargs: Additional email parameters
+            **kwargs: Must include 'to', 'subject', and 'content' parameters
 
         Returns:
             ToolResponse indicating success/failure of email sending
         """
         try:
+            # Extract required parameters
+            to = kwargs.get('to')
+            subject = kwargs.get('subject')
+            content = kwargs.get('content')
+
+            # Validate parameters
+            if not self.validate_params({'to': to, 'subject': subject, 'content': content}):
+                return ToolResponse(
+                    success=False,
+                    result=None,
+                    error="Invalid email parameters"
+                )
+
             msg = MIMEMultipart()
             msg['To'] = to
             msg['Subject'] = subject
@@ -75,6 +82,7 @@ class EmailTool(BaseTool):
                 success=True,
                 result=f"Email sent to {to}"
             )
+
         except Exception as e:
             logger.error(f"Error sending email: {str(e)}")
             return ToolResponse(

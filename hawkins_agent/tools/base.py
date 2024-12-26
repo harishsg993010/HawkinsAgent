@@ -27,7 +27,7 @@ class BaseTool(ABC):
     overridden if needed.
 
     Attributes:
-        name: The name of the tool, used for identification in tool calls
+        _name: Protected name attribute of the tool
     """
 
     def __init__(self, name: Optional[str] = None):
@@ -37,7 +37,12 @@ class BaseTool(ABC):
             name: Optional custom name for the tool. If not provided,
                  the class name will be used.
         """
-        self.name = name or self.__class__.__name__
+        self._name = name or self.__class__.__name__
+
+    @property
+    def name(self) -> str:
+        """Get the tool name"""
+        return self._name
 
     @property
     @abstractmethod
@@ -66,18 +71,6 @@ class BaseTool(ABC):
 
         Returns:
             ToolResponse indicating success/failure and containing results
-
-        Example:
-            >>> async def execute(self, query: str = "", **kwargs):
-            ...     try:
-            ...         result = await self._search(query)
-            ...         return ToolResponse(success=True, result=result)
-            ...     except Exception as e:
-            ...         return ToolResponse(
-            ...             success=False,
-            ...             result=None,
-            ...             error=str(e)
-            ...         )
         """
         pass
 

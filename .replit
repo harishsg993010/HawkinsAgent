@@ -19,6 +19,10 @@ args = "Run Simple Agent"
 task = "workflow.run"
 args = "Run Multi Agent Flow"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Test LLM Models"
+
 [[workflows.workflow]]
 name = "Run Simple Agent"
 author = "agent"
@@ -46,6 +50,20 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python examples/multi_agent_flow.py"
+
+[[workflows.workflow]]
+name = "Test LLM Models"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python examples/model_test.py"
 
 [deployment]
 run = ["sh", "-c", "python examples/simple_agent.py"]
