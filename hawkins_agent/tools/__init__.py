@@ -9,6 +9,7 @@ from .search import WebSearchTool
 from .rag import RAGTool
 from .summarize import SummarizationTool
 from .code_interpreter import CodeInterpreterTool
+from .weather import WeatherTool
 
 __all__ = [
     "BaseTool",
@@ -16,5 +17,6 @@ __all__ = [
     "WebSearchTool",
     "RAGTool",
     "SummarizationTool",
-    "CodeInterpreterTool"
+    "CodeInterpreterTool",
+    "WeatherTool"
 ]

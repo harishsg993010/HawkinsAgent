@@ -27,6 +27,10 @@ args = "Test LLM Models"
 task = "workflow.run"
 args = "Run Tool Test"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Weather Tool Test"
+
 [[workflows.workflow]]
 name = "Run Simple Agent"
 author = "agent"
@@ -71,6 +75,20 @@ args = "python examples/model_test.py"
 
 [[workflows.workflow]]
 name = "Run Tool Test"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python examples/tool_test.py"
+
+[[workflows.workflow]]
+name = "Weather Tool Test"
 author = "agent"
 
 [workflows.workflow.metadata]

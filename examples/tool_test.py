@@ -1,7 +1,7 @@
 """Example demonstrating various tool capabilities"""
 
 from hawkins_agent import AgentBuilder
-from hawkins_agent.tools import WebSearchTool, RAGTool, SummarizationTool, CodeInterpreterTool
+from hawkins_agent.tools import WeatherTool
 from hawkins_agent.mock import KnowledgeBase
 from hawkins_agent.llm import LiteLLMProvider
 import logging
@@ -13,40 +13,34 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 async def main():
-    """Demonstrate tool usage"""
+    """Test weather tool functionality"""
     try:
         # Create a knowledge base
         kb = KnowledgeBase()
 
-        # Get Tavily API key
-        tavily_api_key = os.getenv("TAVILY_API_KEY")
-        if not tavily_api_key:
-            logger.error("TAVILY_API_KEY environment variable not set")
+        # Get OpenWeatherMap API key
+        openweather_api_key = os.getenv("OPENWEATHERMAP_API_KEY")
+        if not openweather_api_key:
+            logger.error("OPENWEATHERMAP_API_KEY environment variable not set")
             return
 
-        # Configure tools
-        search_tool = WebSearchTool(api_key=tavily_api_key)
-        rag_tool = RAGTool(kb)
-        summarize_tool = SummarizationTool()
-        code_tool = CodeInterpreterTool(model="gpt-4o")
+        # Configure weather tool
+        weather_tool = WeatherTool(api_key=openweather_api_key)
 
-        # Create agent with tools
-        logger.info("Creating agent with tools...")
-        agent = (AgentBuilder("tool_tester")
+        # Create agent with weather tool
+        logger.info("Creating agent with weather tool...")
+        agent = (AgentBuilder("weather_tester")
                 .with_model("openai/gpt-4o")
                 .with_provider(LiteLLMProvider, temperature=0.7)
                 .with_knowledge_base(kb)
-                .with_tool(search_tool)
-                .with_tool(rag_tool)
-                .with_tool(summarize_tool)
-                .with_tool(code_tool)
+                .with_tool(weather_tool)
                 .build())
 
         # Test queries
         queries = [
-            "What are the latest developments in quantum computing?",
-            "Could you summarize the findings from the quantum computing research?",
-            "Write a Python function to calculate the Fibonacci sequence"
+            "What's the current weather in London,GB?",
+            "Tell me the weather in Tokyo,JP",
+            "What's the weather like in New York,US?"
         ]
 
         for query in queries:
@@ -69,12 +63,19 @@ async def main():
                 logger.info("-" * 40)
                 for result in response.metadata["tool_results"]:
                     if result["success"]:
-                        logger.info(f"Success: {result['result']}")
+                        weather_data = result["result"]
+                        logger.info("Weather Information:")
+                        logger.info(f"- Temperature: {weather_data['temperature']}°C")
+                        logger.info(f"- Feels like: {weather_data['feels_like']}°C")
+                        logger.info(f"- Description: {weather_data['description']}")
+                        logger.info(f"- Humidity: {weather_data['humidity']}%")
+                        logger.info(f"- Wind Speed: {weather_data['wind_speed']} m/s")
+                        logger.info(f"- Pressure: {weather_data['pressure']} hPa")
                     else:
                         logger.error(f"Error: {result['error']}")
 
     except Exception as e:
-        logger.error(f"Error in tool demonstration: {str(e)}", exc_info=True)
+        logger.error(f"Error in weather tool demonstration: {str(e)}", exc_info=True)
         raise
 
 if __name__ == "__main__":
