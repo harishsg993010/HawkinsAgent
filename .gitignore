@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Documentation and examples
+docs/
+examples/
+
+# Environment
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Database
+*.db
+*.sqlite3
+
+# Replit specific
+.replit
+.pythonlibs/
+.upm/
+.breakpoints
+replit.nix
+poetry.lock
+
+# Node modules (if any)
+node_modules/
+package-lock.json
+
+# Build artifacts
+*.log
+*.pot
+*.pyc
+
+# OS specific
+.DS_Store
+Thumbs.db
