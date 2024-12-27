@@ -35,17 +35,37 @@ db = HawkinDB(
 
 ```python
 from hawkins_agent import AgentBuilder
-from hawkinsdb import HawkinDB
+from hawkinsdb import HawkinsDB, LLMInterface
+import asyncio
 
+
+import os
+os.environ["OPENAI_API_KEY"]=""
 # Initialize memory
-memory_db = HawkinDB()
+memory_db = HawkinsDB()
+llm = LLMInterface(memory_db)
+
 
 # Create agent with memory
 agent = (AgentBuilder("assistant")
         .with_model("gpt-4o")
         .with_memory(memory_db)
+        .with_memory({
+            "retention_days": 7,  # Keep memory for 7 days
+            "max_entries": 1000   # Maximum memory entries
+        })
         .build())
-```
+
+async def main():
+    response = await agent.process("Define AI")
+    similar_memories = llm.query(
+    "What is AI"
+    )
+    print(similar_memories)
+    print(response)
+
+if __name__ == "__main__":
+    asyncio.run(main())
 
 ### Memory Operations
 
@@ -58,8 +78,14 @@ response = await agent.process("What's the weather?")
 
 2. **Retrieving Context**
 ```python
+from hawkinsdb import HawkinsDB, LLMInterface
+memory_db = HawkinsDB()
+llm = LLMInterface(memory_db)
+
 # Recent interactions are automatically included in context
-previous_interactions = await agent.memory.get_recent(limit=5)
+ similar_memories = llm.query(
+    "What is AI"
+    )
 ```
 
 3. **Memory Configuration**
@@ -71,28 +97,6 @@ agent = (AgentBuilder("assistant")
             "max_entries": 1000   # Maximum memory entries
         })
         .build())
-```
-
-## Memory Search and Retrieval
-
-The framework provides several ways to search and utilize stored memories:
-
-### Semantic Search
-```python
-# Search for semantically similar interactions
-similar_memories = await agent.memory.search(
-    "weather forecast",
-    limit=5
-)
-```
-
-### Temporal Search
-```python
-# Get memories from a specific timeframe
-recent_memories = await agent.memory.get_range(
-    start_date="2024-01-01",
-    end_date="2024-01-07"
-)
 ```
 
 ## Memory Schemas
