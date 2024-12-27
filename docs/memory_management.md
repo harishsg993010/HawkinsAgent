@@ -125,10 +125,10 @@ Fields:
 ```python
 from hawkins_agent import AgentBuilder
 from hawkins_agent.tools import WebSearchTool
-from hawkinsdb import HawkinDB
+from hawkinsdb import HawkinsDB
 
 # Initialize memory with custom configuration
-memory_db = HawkinDB(
+memory_db = HawkinsDB(
     storage_type="sqlite",
     db_path="hawkins_memory.db",
     config={
