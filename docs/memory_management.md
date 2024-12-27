@@ -16,9 +16,9 @@ HawkinsDB provides a SQLite-based storage system for maintaining agent memory ac
 
 1. **Memory Storage**
 ```python
-from hawkinsdb import HawkinDB
+from hawkinsdb import HawkinsDB
 
-db = HawkinDB(
+db = HawkinsDB(
     storage_type="sqlite",
     db_path="hawkins_memory.db"
 )
