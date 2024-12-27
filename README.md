@@ -1,6 +1,6 @@
 # Hawkins Agent Framework
 
-A Python SDK for building AI agents with minimal code using the Hawkins ecosystem. This framework integrates key tools and services for building functional AI agents.
+A Python SDK for building AI agents with minimal code using This framework integrates key tools and services for building functional AI agents.
 
 ![Version](https://img.shields.io/pypi/v/hawkins-agent)
 ![Python](https://img.shields.io/pypi/pyversions/hawkins-agent)
