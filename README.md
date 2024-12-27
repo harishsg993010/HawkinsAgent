@@ -165,4 +165,4 @@ MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Credits
 
-Built with ❤️ by the Harish
+Built with ❤️ by the Harish and AI Agents
