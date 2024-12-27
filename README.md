@@ -33,6 +33,8 @@ from hawkins_agent import AgentBuilder
 from hawkins_agent.tools import WebSearchTool
 from hawkins_agent.mock import KnowledgeBase
 
+ search_tool = WebSearchTool(api_key=os.environ.get("TAVILY_API_KEY"))
+
 async def main():
     # Create a knowledge base
     kb = KnowledgeBase()
@@ -41,7 +43,7 @@ async def main():
     agent = (AgentBuilder("researcher")
             .with_model("gpt-4o")
             .with_knowledge_base(kb)
-            .with_tool(WebSearchTool())
+            .with_tool(search_tool)
             .build())
     
     # Process a query
