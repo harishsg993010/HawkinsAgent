@@ -272,16 +272,29 @@ class Agent:
         else:
             return f"""{base_prompt}
 
-You have access to the following tools:
-
-{tool_descriptions}
-
-When you need to use a tool, use this format in your response:
-<tool_call>
-{{"name": "tool_name", "parameters": {{"query": "your query"}}}}
-</tool_call>
-
-After using a tool, summarize its results in a clear and helpful way."""
+            You have access to the following tools:
+            {tool_descriptions}
+            
+            When you need to use a tool, please use the exact format defined by each tool's schema:
+            
+            <tool_call>
+            {"name": "tool_name", "parameters": {"parameter1": "value1", "parameter2": "value2"}}
+            </tool_call>
+            
+            Important guidelines:
+            - Use only the parameter names specified in the tool_descriptions
+            - Include all required parameters as defined in each tool's schema
+            - Format parameter values according to their expected types (string, number, boolean, etc.)
+            - For complex parameters like arrays or objects, use proper JSON formatting
+            - Wait for the tool's response before proceeding with your analysis
+            
+            If a tool description does not specify any parameters, use this fallback format:
+            <tool_call>
+            {"name": "tool_name", "parameters": {"query": "your query"}}
+            </tool_call>
+            
+            After receiving results from a tool, interpret the output and incorporate it into your response.
+            """
 
 class AgentBuilder:
     """Builder class for creating agents with a fluent interface"""
