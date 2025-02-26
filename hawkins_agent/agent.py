@@ -10,7 +10,6 @@ import json
 import re
 import logging
 from dataclasses import asdict
-import inspect
 
 logger = logging.getLogger(__name__)
 
@@ -93,20 +92,22 @@ class Agent:
 
             messages.append(Message(role=MessageRole.USER, content=message))
 
-            # Format tools for LLM - Get actual parameters from the tool's validate_params method
+            # Format tools for LLM
             formatted_tools = []
             if self.tools:
                 for tool in self.tools:
-                    # Get tool parameters by inspecting the validate_params method signature
-                    tool_params = self._get_tool_parameters(tool)
-                    
                     formatted_tools.append({
                         "name": tool.name,
                         "description": tool.description,
                         "parameters": {
                             "type": "object",
-                            "properties": tool_params,
-                            "required": self._get_required_parameters(tool, tool_params)
+                            "properties": {
+                                "query": {
+                                    "type": "string", 
+                                    "description": "The query or parameters for the tool"
+                                }
+                            },
+                            "required": ["query"]
                         }
                     })
 
@@ -136,89 +137,6 @@ class Agent:
                 tool_calls=[],
                 metadata={"error": str(e)}
             )
-
-    def _get_tool_parameters(self, tool: BaseTool) -> Dict[str, Dict[str, Any]]:
-        """Extract parameter information from a tool"""
-        try:
-            # Try to inspect the tool's validate_params method signature
-            params = {}
-            
-            # Check if tool has a get_parameters method (custom method to expose parameters)
-            if hasattr(tool, 'get_parameters') and callable(getattr(tool, 'get_parameters')):
-                return tool.get_parameters()
-                
-            # Inspect the execute method to get parameter information
-            sig = inspect.signature(tool.execute)
-            
-            for param_name, param in sig.parameters.items():
-                if param_name != 'self' and param_name != 'kwargs':
-                    # Default parameter configuration
-                    param_config = {
-                        "type": "string",
-                        "description": f"Parameter '{param_name}' for {tool.name}"
-                    }
-                    
-                    # Add annotation information if available
-                    if param.annotation != inspect.Parameter.empty:
-                        if param.annotation == str:
-                            param_config["type"] = "string"
-                        elif param.annotation == int:
-                            param_config["type"] = "integer"
-                        elif param.annotation == float:
-                            param_config["type"] = "number"
-                        elif param.annotation == bool:
-                            param_config["type"] = "boolean"
-                        elif param.annotation == list or param.annotation == List:
-                            param_config["type"] = "array"
-                            param_config["items"] = {"type": "string"}
-                    
-                    # Add default value if available
-                    if param.default != inspect.Parameter.empty:
-                        param_config["default"] = param.default
-                    
-                    params[param_name] = param_config
-            
-            # If no parameters were found, provide a default query parameter
-            if not params:
-                params["query"] = {
-                    "type": "string",
-                    "description": f"Generic query parameter for {tool.name}"
-                }
-                
-            return params
-            
-        except Exception as e:
-            logger.warning(f"Error extracting parameters for tool {tool.name}: {str(e)}")
-            # Fallback to generic query parameter
-            return {
-                "query": {
-                    "type": "string",
-                    "description": f"Generic query parameter for {tool.name}"
-                }
-            }
-
-    def _get_required_parameters(self, tool: BaseTool, params: Dict[str, Dict[str, Any]]) -> List[str]:
-        """Determine which parameters are required for a tool"""
-        required = []
-        
-        # If the tool has a custom method to expose required parameters, use that
-        if hasattr(tool, 'get_required_parameters') and callable(getattr(tool, 'get_required_parameters')):
-            return tool.get_required_parameters()
-            
-        # Check for required parameters in the execute method signature
-        try:
-            sig = inspect.signature(tool.execute)
-            for param_name, param in sig.parameters.items():
-                if param_name in params and param.default == inspect.Parameter.empty and param_name != 'self':
-                    required.append(param_name)
-        except Exception as e:
-            logger.warning(f"Error determining required parameters for {tool.name}: {str(e)}")
-            
-        # If no required parameters were found but we have parameters, make the first one required
-        if not required and params and 'query' in params:
-            required.append('query')
-            
-        return required
 
     async def _process_response(self, response: Dict[str, Any], original_message: str) -> AgentResponse:
         """Process the LLM response and handle tool calls"""
@@ -309,17 +227,6 @@ class Agent:
 
             if tool:
                 try:
-                    # Validate parameters if the tool has a validate_params method
-                    if hasattr(tool, 'validate_params') and callable(getattr(tool, 'validate_params')):
-                        if not tool.validate_params(parameters):
-                            results.append({
-                                "tool": tool_name,
-                                "success": False,
-                                "result": None,
-                                "error": "Invalid parameters for this tool"
-                            })
-                            continue
-                
                     result = await tool.execute(**parameters)
                     if isinstance(result, ToolResponse):
                         results.append({
@@ -371,7 +278,7 @@ You have access to the following tools:
 
 When you need to use a tool, use this format in your response:
 <tool_call>
-{{"name": "tool_name", "parameters": {{...parameters for the tool...}}}}
+{{"name": "tool_name", "parameters": {{"query": "your query"}}}}
 </tool_call>
 
 After using a tool, summarize its results in a clear and helpful way."""
